@@ -2,6 +2,7 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional, Dict, Any
+from config import CONFIG
 
 
 class ScraperError(Exception):
@@ -11,7 +12,7 @@ class ScraperError(Exception):
 class FundoImobiliario:
     def __init__(self, ticker: str):
         self._ticker = ticker
-        self._url = f"https://statusinvest.com.br/fundos-imobiliarios/{ticker}"
+        self._url = f"{CONFIG["scraper_base_url"]}{ticker}"
         self._payment_data = {"base_date": "", "payment_date": "", "payment_amount": "", "unit_price": ""}
 
     def get_payment_data(self) -> Dict[str, Any]:
@@ -24,8 +25,11 @@ class FundoImobiliario:
     def url(self) -> str:
         return self._url
 
+    @property
+    def ticker(self) -> str:
+        return self._ticker
 
-class Scraper:
+class FundoScraper:
     def __init__(self):
         self._logger = self._setup_logging()
 
@@ -35,8 +39,7 @@ class Scraper:
 
     def _get_html(self, url: str) -> str:
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+            headers = CONFIG["request_header"]
 
             response = requests.get(url, headers=headers)
             response.raise_for_status()
@@ -52,18 +55,19 @@ class Scraper:
             html = self._get_html(fundo.url)
 
             soup = BeautifulSoup(html, 'html.parser')
+            #Might transfer these classes to config file
             date_elements = soup.find_all(class_="sub-value fs-4 lh-3")
             amount_elements = soup.find_all(class_="value d-inline-block fs-5 fw-900")
             price_elements = soup.find_all(class_="value")
 
             if not date_elements or len(date_elements) < 2:
-                self._logger.warning("Unable to retrieve base and payment dates")
+                self._logger.warning(f"Unable to retrieve base and payment dates for FII: {fundo.ticker}")
 
             if not amount_elements or len(amount_elements) < 2:
-                self._logger.warning("Unable to retrieve dividend amounts")
+                self._logger.warning(f"Unable to retrieve dividend amounts for FII: {fundo.ticker}")
 
             if not price_elements:
-                self._logger.warning("Unable to retrieve current value")
+                self._logger.warning(f"Unable to retrieve current value for FII: {fundo.ticker}")
 
             payment_data = {}
 
@@ -81,3 +85,4 @@ class Scraper:
 
         except Exception as e:
             self._logger.error(f"Error parsing HTML: {e}")
+
